@@ -1,0 +1,18 @@
+{
+  "name": "ts-agent",
+  "version": "0.0.1",
+  "description": "TypeScript implementation of learn-claude-code agent (OpenAI 版本)",
+  "type": "module",
+  "scripts": {
+    "s01": "tsx src/s01.ts",
+    "s02": "tsx src/s02.ts"
+  },
+  "dependencies": {
+    "openai": "^4.83.0",
+    "dotenv": "^16.4.7"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.6",
+    "tsx": "^4.19.2"
+  }
+}
