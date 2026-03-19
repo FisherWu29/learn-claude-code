@@ -51,6 +51,51 @@ npm run s01
 
 📥 第 1 轮 - LLM 响应:
   finish_reason: tool_calls
+
+  📝 大模型说:
+  "好的，我来帮你列出文件。"
+
+  🔧 工具调用 (1 个):
+    ┌─ bash()
+    │  id: call_abc123
+    │  name: bash
+    │  arguments (JSON 字符串):
+    │    {"command":"ls -la"}
+    │  arguments (解析后):
+    │    {"command": "ls -la"}
+    └───────────────────────────
+
+⚡ 执行: $ ls -la
+...
+```
+
+#### VERBOSE 模式（查看完整原始 JSON）
+
+```bash
+# Windows
+set VERBOSE=true
+npm run s01
+
+# Mac/Linux
+VERBOSE=true npm run s01
+```
+
+会显示 LLM 返回的完整原始 JSON 结构，方便深入理解。
+
+```
+【用户输入 #1】
+👤 用户: 列出当前目录的文件
+
+============================================================
+【LLM 调用 #1】
+============================================================
+
+📤 第 1 轮 - 发送给 LLM 的消息 (2 条):
+  [system] "You are a coding agent at..."
+  [user] "列出当前目录的文件"
+
+📥 第 1 轮 - LLM 响应:
+  finish_reason: tool_calls
   工具调用 (1 个):
     - bash(call_xxx)
       arguments: {"command":"ls"}

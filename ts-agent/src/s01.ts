@@ -41,13 +41,26 @@ import dotenv from 'dotenv';
 // 第一部分：初始化配置
 // ============================================================
 
+// --------------------------------------------------------
+// Windows 中文编码修复
+// --------------------------------------------------------
+// 设置 Node.js 输出编码为 UTF-8，解决 Windows 控制台中文乱码问题
+if (process.platform === 'win32') {
+  process.stdout.setEncoding('utf-8');
+  process.stderr.setEncoding('utf-8');
+}
+
 // 加载 .env 环境变量
 dotenv.config();
 
 // ============================================================
 // 调试配置：是否显示详细日志
 // ============================================================
-const DEBUG = process.env.DEBUG === 'true' ?? true;  // 默认开启调试
+// 默认开启调试，设置环境变量 DEBUG=false 可关闭
+const DEBUG = process.env.DEBUG !== 'false';
+
+// 是否显示完整的原始 JSON 响应（用于深入理解）
+const VERBOSE = process.env.VERBOSE === 'true';
 
 /**
  * 打印分隔线（用于区分不同的 LLM 调用）
@@ -104,16 +117,63 @@ function printLLMResponse(response: OpenAI.ChatCompletion, round: number) {
   console.log(`\n\x1b[35m📥 第 ${round} 轮 - LLM 响应:\x1b[0m`);
   console.log(`  finish_reason: \x1b[33m${finishReason}\x1b[0m`);
 
-  if (msg.content) {
-    console.log(`  content: "\x1b[37m${msg.content}\x1b[0m"`);
+  // ============================================================
+  // VERBOSE 模式：显示完整的原始 JSON
+  // ============================================================
+  if (VERBOSE) {
+    console.log(`\n  \x1b[90m┌───────────── 原始响应 JSON ─────────────\x1b[0m`);
+    // 只打印关键部分，避免太长
+    const compact = {
+      id: response.id,
+      finish_reason: finishReason,
+      message: {
+        role: msg.role,
+        content: msg.content,
+        tool_calls: msg.tool_calls?.map(tc => ({
+          id: tc.id,
+          type: tc.type,
+          function: {
+            name: tc.function.name,
+            arguments: tc.function.arguments
+          }
+        }))
+      }
+    };
+    console.log(`  \x1b[90m${JSON.stringify(compact, null, 2).split('\n').join('\n  ')}\x1b[0m`);
+    console.log(`  \x1b[90m───────────────────────────────────────\x1b[0m`);
   }
 
+  // 先打印文字回复（如果有）
+  if (msg.content) {
+    console.log(`\n  \x1b[36m📝 大模型说:\x1b[0m`);
+    console.log(`  "\x1b[37m${msg.content}\x1b[0m"`);
+  }
+
+  // 再打印工具调用（如果有）
   if (msg.tool_calls && msg.tool_calls.length > 0) {
-    console.log(`  \x1b[33m工具调用 (${msg.tool_calls.length} 个):\x1b[0m`);
+    console.log(`\n  \x1b[33m🔧 工具调用 (${msg.tool_calls.length} 个):\x1b[0m`);
     for (const call of msg.tool_calls) {
-      console.log(`    - \x1b[33m${call.function.name}\x1b[0m(${call.id})`);
-      console.log(`      arguments: ${call.function.arguments}`);
+      console.log(`\n    \x1b[33m┌─ ${call.function.name}()\x1b[0m`);
+      console.log(`    │  id: \x1b[90m${call.id}\x1b[0m`);
+      console.log(`    │  name: \x1b[33m${call.function.name}\x1b[0m`);
+      console.log(`    │  arguments (JSON 字符串):`);
+      console.log(`    │    \x1b[37m${call.function.arguments}\x1b[0m`);
+
+      // 解析后的参数（更易读）
+      try {
+        const parsed = JSON.parse(call.function.arguments);
+        console.log(`    │  arguments (解析后):`);
+        console.log(`    │    \x1b[36m${JSON.stringify(parsed, null, 6).split('\n').join('\n    │    ')}\x1b[0m`);
+      } catch {
+        // 解析失败，跳过
+      }
+      console.log(`    \x1b[33m└──────────────────────────────\x1b[0m`);
     }
+  }
+
+  // 如果什么都没有
+  if (!msg.content && (!msg.tool_calls || msg.tool_calls.length === 0)) {
+    console.log(`  \x1b[90m(空响应 - 只有 content 为空且没有工具调用)\x1b[0m`);
   }
 }
 
@@ -462,11 +522,23 @@ async function main() {
       // 打印助手的最终回复
       // ------------------------------------------------------
       const lastMessage = history[history.length - 1];
-      if (lastMessage && lastMessage.role === 'assistant' && 'content' in lastMessage) {
-        const content = lastMessage.content as string;
-        if (content) {
-          console.log(`\n\x1b[34m🤖 Agent: ${content}\x1b[0m`);
+      if (lastMessage && lastMessage.role === 'assistant') {
+        // 打印文字回复
+        if ('content' in lastMessage && lastMessage.content) {
+          console.log(`\n\x1b[34m🤖 Agent 最终回复:\x1b[0m`);
+          console.log(`  "${lastMessage.content}"`);
         }
+        // 如果只有工具调用没有文字
+        else if (lastMessage.tool_calls && lastMessage.tool_calls.length > 0) {
+          console.log(`\n\x1b[34m🤖 Agent 调用了 ${lastMessage.tool_calls.length} 个工具，没有额外文字\x1b[0m`);
+        }
+      }
+
+      // ============================================================
+      // 调试：显示当前历史状态
+      // ============================================================
+      if (DEBUG) {
+        console.log(`\n\x1b[90m📚 当前历史记录: ${history.length} 条消息\x1b[0m`);
       }
 
       console.log(''); // 空行分隔
